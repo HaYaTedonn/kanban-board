@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>カンバンボード（タスク/案件管理）デモ</title>
+<style>
+  :root{
+    --bg:#f3f4f1; --board:#eceee8; --card:#ffffff; --ink:#222720; --soft:#5f665a; --faint:#9aa094;
+    --green:#3f9d5a; --green-deep:#2f7d46; --line:#e3e5de;
+    --p-high:#d8584e; --p-mid:#dd9a36; --p-low:#5aa6c4;
+    --sans:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
+    --shadow:0 1px 2px rgba(34,39,32,.05),0 6px 16px rgba(34,39,32,.08);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:var(--sans);color:var(--ink);background:var(--bg);line-height:1.55;-webkit-font-smoothing:antialiased}
+  .top{display:flex;align-items:center;gap:12px;padding:18px 24px;flex-wrap:wrap;border-bottom:1px solid var(--line);background:#fff}
+  .brand{font-weight:800;font-size:19px;display:flex;align-items:center;gap:9px}
+  .brand .m{width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#4fb56e,#2f7d46);display:grid;place-items:center;color:#fff;font-size:14px}
+  .chip{font-size:10px;letter-spacing:.14em;font-weight:800;color:#fff;background:var(--green);padding:4px 10px;border-radius:99px}
+  .top .progress{margin-left:8px;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--soft)}
+  .top .pbar{width:120px;height:7px;border-radius:99px;background:var(--line);overflow:hidden}
+  .top .pbar i{display:block;height:100%;background:linear-gradient(90deg,#4fb56e,#2f7d46);width:0;transition:width .5s}
+  .top .right{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .search input{border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-family:var(--sans);font-size:13.5px;width:170px}
+  .btn{border:1px solid var(--line);background:#fff;border-radius:9px;padding:9px 14px;font-family:var(--sans);font-size:13px;font-weight:700;color:var(--soft);cursor:pointer}
+  .btn.primary{background:var(--green);border-color:var(--green);color:#fff}
+
+  .board{display:flex;gap:16px;padding:22px 24px 40px;overflow-x:auto;align-items:flex-start;min-height:70vh}
+  .col{flex:0 0 290px;background:var(--board);border-radius:14px;padding:12px;display:flex;flex-direction:column;max-height:calc(100vh - 150px)}
+  .col.dragover{outline:2px dashed var(--green);outline-offset:-2px;background:#e4ebe2}
+  .colhead{display:flex;align-items:center;gap:8px;padding:4px 6px 10px}
+  .colhead .ttl{font-weight:800;font-size:14px}
+  .colhead .cnt{font-size:11px;color:var(--faint);background:#fff;border-radius:99px;padding:1px 8px}
+  .colhead .menu{margin-left:auto;color:var(--faint);cursor:pointer;border:0;background:none;font-size:15px}
+  .cards{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:9px;min-height:24px;padding:2px}
+  .card{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--p-mid);border-radius:10px;padding:11px 12px;box-shadow:var(--shadow);cursor:grab}
+  .card.dragging{opacity:.4;transform:rotate(2deg)}
+  .card.p-high{border-left-color:var(--p-high)} .card.p-mid{border-left-color:var(--p-mid)} .card.p-low{border-left-color:var(--p-low)}
+  .card .labels{display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap}
+  .card .lab{height:6px;width:28px;border-radius:99px}
+  .card .ti{font-weight:700;font-size:13.5px}
+  .card .meta{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:11px;color:var(--faint);flex-wrap:wrap}
+  .card .due{background:#f4f1e8;color:#8a7a45;padding:1px 7px;border-radius:99px}
+  .card .due.over{background:#fbeceb;color:var(--p-high)}
+  .card .asg{display:flex;align-items:center;gap:4px}
+  .card .av{width:18px;height:18px;border-radius:50%;background:var(--green-deep);color:#fff;display:grid;place-items:center;font-size:9px;font-weight:700}
+  .card .pri{margin-left:auto;font-size:10px;font-weight:700;padding:1px 7px;border-radius:99px}
+  .pri.p-high{background:#fbeceb;color:var(--p-high)} .pri.p-mid{background:#fcf3e3;color:var(--p-mid)} .pri.p-low{background:#eaf3f7;color:var(--p-low)}
+  .addcard{border:1px dashed var(--line);background:none;border-radius:9px;padding:9px;color:var(--soft);font-size:12.5px;cursor:pointer;margin-top:9px;font-family:var(--sans)}
+  .addcol{flex:0 0 200px;border:1px dashed #c9cdc3;border-radius:14px;background:none;color:var(--soft);padding:14px;cursor:pointer;font-family:var(--sans);font-size:13px;font-weight:700;height:46px}
+
+  .modal{position:fixed;inset:0;background:rgba(20,25,18,.45);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}
+  .modal.show{display:flex}
+  .mbox{background:#fff;border-radius:16px;width:440px;max-width:100%;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow)}
+  .mbox h3{margin:0;padding:18px 22px;border-bottom:1px solid var(--line);font-size:17px}
+  .mform{padding:18px 22px}
+  .mform label{display:block;font-size:12px;color:var(--soft);font-weight:700;margin:11px 0 5px}
+  .mform input,.mform textarea,.mform select{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-family:var(--sans);font-size:14px}
+  .mform textarea{resize:vertical;min-height:60px}
+  .two{display:flex;gap:10px}.two>div{flex:1}
+  .swatch{display:flex;gap:7px;margin-top:4px}
+  .swatch .s{width:26px;height:26px;border-radius:7px;cursor:pointer;border:2px solid transparent}
+  .swatch .s.on{border-color:var(--ink)}
+  .mfoot{padding:14px 22px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end}
+  .mfoot .del{color:var(--p-high);margin-right:auto}
+  .foot{text-align:center;color:var(--faint);font-size:11.5px;padding:8px 0 26px;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="brand"><span class="m">▥</span> Flow<span style="color:#3f9d5a">Board</span></div>
+  <span class="chip">DEMO</span>
+  <div class="progress">進捗 <div class="pbar"><i id="pbar"></i></div> <b id="ppct">0%</b></div>
+  <div class="right">
+    <div class="search"><input id="q" placeholder="カードを検索" oninput="render()"></div>
+    <select class="btn" id="fAssignee" onchange="render()" style="font-weight:400"><option value="">担当者：全員</option></select>
+    <button class="btn primary" onclick="resetBoard()">リセット</button>
+  </div>
+</div>
+
+<div class="board" id="board"></div>
+<p class="foot">表示データは架空のサンプルです。カードはドラッグ&ドロップで移動できます。<br>© 2026 鈴木颯（個人事業 / システム開発）</p>
+
+<!-- card modal -->
+<div class="modal" id="modal">
+  <div class="mbox">
+    <h3 id="mTitle">カードを追加</h3>
+    <div class="mform">
+      <label>タイトル *</label><input id="c_title" placeholder="例）トップページのデザイン">
+      <label>説明</label><textarea id="c_desc" placeholder="詳細メモ"></textarea>
+      <div class="two">
+        <div><label>担当者</label><input id="c_asg" placeholder="山田"></div>
+        <div><label>期限</label><input id="c_due" type="date"></div>
+      </div>
+      <div class="two">
+        <div><label>優先度</label><select id="c_pri"><option value="high">高</option><option value="mid" selected>中</option><option value="low">低</option></select></div>
+        <div><label>ラベル色</label><div class="swatch" id="c_labels"></div></div>
+      </div>
+    </div>
+    <div class="mfoot">
+      <button class="btn del" id="delBtn" onclick="delCard()" style="display:none">削除</button>
+      <button class="btn" onclick="closeModal()">キャンセル</button>
+      <button class="btn primary" onclick="saveCard()">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const KEY="flowboard_demo_v1";
+const LABELS=["#d8584e","#dd9a36","#3f9d5a","#5aa6c4","#8f6fd0","#c95f9b"];
+let editing=null, selLabels=[];
+
+function load(){ try{return JSON.parse(localStorage.getItem(KEY))}catch(e){return null} }
+function save(){ localStorage.setItem(KEY,JSON.stringify(state)); }
+function uid(p){ return p+Date.now().toString(36)+Math.floor(Math.random()*900+100); }
+function today(){ const d=new Date(); return d.toISOString().slice(0,10); }
+function addDays(n){ const d=new Date(); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
+
+function seed(){
+  const C=(title,desc,asg,due,pri,labels)=>({id:uid("k"),title,desc,asg,due,pri,labels});
+  return { cols:[
+    {id:"c1",name:"未着手",cards:[
+      C("トップページのデザイン案","3案つくって比較","佐藤",addDays(3),"high",["#d8584e"]),
+      C("問い合わせフォーム","バリデーション含む","山田",addDays(6),"mid",["#3f9d5a"]),
+      C("ロゴ素材の整理","","",null,"low",[])
+    ]},
+    {id:"c2",name:"進行中",cards:[
+      C("予約システムの実装","枠の重複判定まで","鈴木",addDays(2),"high",["#dd9a36","#3f9d5a"]),
+      C("CSV出力機能","UTF-8 BOM対応","山田",addDays(1),"mid",["#5aa6c4"])
+    ]},
+    {id:"c3",name:"レビュー",cards:[
+      C("管理画面の権限分離","レビュー待ち","佐藤",addDays(-1),"mid",["#8f6fd0"])
+    ]},
+    {id:"c4",name:"完了",cards:[
+      C("要件ヒアリング","議事録共有済み","鈴木",addDays(-5),"low",["#3f9d5a"]),
+      C("環境構築","","山田",addDays(-7),"low",[])
+    ]}
+  ]};
+}
+let state = load() || (function(){const s=seed();localStorage.setItem(KEY,JSON.stringify(s));return s;})();
+
+function allAssignees(){ const set=new Set(); state.cols.forEach(c=>c.cards.forEach(k=>{if(k.asg)set.add(k.asg);})); return [...set]; }
+function matches(k){
+  const q=document.getElementById('q').value.trim().toLowerCase();
+  const fa=document.getElementById('fAssignee').value;
+  if(fa && k.asg!==fa) return false;
+  if(q && !((k.title+(k.desc||"")+(k.asg||"")).toLowerCase().includes(q))) return false;
+  return true;
+}
+
+function render(){
+  // progress = 完了列のカード / 全カード
+  let total=0, done=0;
+  state.cols.forEach(c=>{ total+=c.cards.length; if(c.name==="完了") done+=c.cards.length; });
+  const pct = total? Math.round(done/total*100):0;
+  document.getElementById('pbar').style.width=pct+"%";
+  document.getElementById('ppct').textContent=pct+"%";
+  // assignee filter options
+  const fa=document.getElementById('fAssignee'); const cur=fa.value;
+  fa.innerHTML='<option value="">担当者：全員</option>'+allAssignees().map(a=>`<option ${a===cur?'selected':''}>${esc(a)}</option>`).join("");
+
+  const board=document.getElementById('board'); board.innerHTML="";
+  state.cols.forEach(col=>{
+    const el=document.createElement('div'); el.className='col'; el.dataset.col=col.id;
+    el.ondragover=e=>{e.preventDefault();el.classList.add('dragover');};
+    el.ondragleave=()=>el.classList.remove('dragover');
+    el.ondrop=e=>{e.preventDefault();el.classList.remove('dragover');drop(col.id,e);};
+    const visible=col.cards.filter(matches);
+    el.innerHTML=`<div class="colhead"><span class="ttl">${esc(col.name)}</span><span class="cnt">${col.cards.length}</span>
+      <button class="menu" title="列名を変更" onclick="renameCol('${col.id}')">✎</button>
+      <button class="menu" title="列を削除" onclick="delCol('${col.id}')">🗑</button></div>
+      <div class="cards" id="cards-${col.id}"></div>
+      <button class="addcard" onclick="openModal('${col.id}')">＋ カードを追加</button>`;
+    board.appendChild(el);
+    const cc=el.querySelector('.cards');
+    visible.forEach(k=>cc.appendChild(cardEl(col.id,k)));
+  });
+  const addcol=document.createElement('button'); addcol.className='addcol'; addcol.textContent="＋ 列を追加"; addcol.onclick=addCol;
+  board.appendChild(addcol);
+  save();
+}
+
+function cardEl(colId,k){
+  const el=document.createElement('div'); el.className='card p-'+k.pri; el.draggable=true; el.dataset.id=k.id; el.dataset.col=colId;
+  el.ondragstart=e=>{ el.classList.add('dragging'); e.dataTransfer.setData('text/plain',JSON.stringify({id:k.id,from:colId})); };
+  el.ondragend=()=>el.classList.remove('dragging');
+  el.onclick=()=>openModal(colId,k.id);
+  const overdue = k.due && k.due<today();
+  el.innerHTML=`${k.labels&&k.labels.length?`<div class="labels">${k.labels.map(c=>`<span class="lab" style="background:${c}"></span>`).join("")}</div>`:""}
+    <div class="ti">${esc(k.title)}</div>
+    <div class="meta">
+      ${k.due?`<span class="due ${overdue?'over':''}">📅 ${k.due.slice(5)}</span>`:""}
+      ${k.asg?`<span class="asg"><span class="av">${esc(k.asg.slice(0,1))}</span>${esc(k.asg)}</span>`:""}
+      <span class="pri p-${k.pri}">${k.pri==='high'?'高':k.pri==='mid'?'中':'低'}</span>
+    </div>`;
+  return el;
+}
+
+function drop(toCol,e){
+  let d; try{ d=JSON.parse(e.dataTransfer.getData('text/plain')); }catch(_){return;}
+  const from=state.cols.find(c=>c.id===d.from); const to=state.cols.find(c=>c.id===toCol);
+  if(!from||!to)return;
+  const idx=from.cards.findIndex(k=>k.id===d.id); if(idx<0)return;
+  const [card]=from.cards.splice(idx,1);
+  // ドロップ位置：マウス位置から挿入インデックスを推定
+  const cont=document.getElementById('cards-'+toCol);
+  const after=[...cont.querySelectorAll('.card:not(.dragging)')].find(c=>e.clientY < c.getBoundingClientRect().top + c.getBoundingClientRect().height/2);
+  let insertAt=to.cards.length;
+  if(after){ const aid=after.dataset.id; const ai=to.cards.findIndex(k=>k.id===aid); if(ai>=0) insertAt=ai; }
+  to.cards.splice(insertAt,0,card);
+  render();
+}
+
+/* modal */
+function renderSwatch(){
+  document.getElementById('c_labels').innerHTML=LABELS.map(c=>
+    `<span class="s ${selLabels.includes(c)?'on':''}" style="background:${c}" onclick="toggleLabel('${c}')"></span>`).join("");
+}
+function toggleLabel(c){ selLabels=selLabels.includes(c)?selLabels.filter(x=>x!==c):[...selLabels,c]; renderSwatch(); }
+
+function openModal(colId,cardId){
+  editing={colId,cardId:cardId||null};
+  const k=cardId?state.cols.find(c=>c.id===colId).cards.find(x=>x.id===cardId):null;
+  document.getElementById('mTitle').textContent=cardId?"カードを編集":"カードを追加";
+  document.getElementById('delBtn').style.display=cardId?"block":"none";
+  c_title.value=k?k.title:""; c_desc.value=k?(k.desc||""):""; c_asg.value=k?(k.asg||""):"";
+  c_due.value=k?(k.due||""):""; c_pri.value=k?k.pri:"mid"; selLabels=k?[...(k.labels||[])]:[];
+  renderSwatch();
+  document.getElementById('modal').classList.add('show');
+}
+function closeModal(){ document.getElementById('modal').classList.remove('show'); }
+function saveCard(){
+  const title=c_title.value.trim(); if(!title){ alert("タイトルを入力してください"); return; }
+  const col=state.cols.find(c=>c.id===editing.colId);
+  const payload={ title, desc:c_desc.value.trim(), asg:c_asg.value.trim(), due:c_due.value||null, pri:c_pri.value, labels:[...selLabels] };
+  if(editing.cardId){ const k=col.cards.find(x=>x.id===editing.cardId); Object.assign(k,payload); }
+  else { col.cards.push(Object.assign({id:uid("k")},payload)); }
+  closeModal(); render();
+}
+function delCard(){
+  if(!confirm("このカードを削除します。よろしいですか？"))return;
+  const col=state.cols.find(c=>c.id===editing.colId);
+  col.cards=col.cards.filter(x=>x.id!==editing.cardId);
+  closeModal(); render();
+}
+
+function addCol(){
+  const name=prompt("新しい列の名前",""); if(!name)return;
+  state.cols.push({id:uid("c"),name:name.trim(),cards:[]}); render();
+}
+function renameCol(id){
+  const col=state.cols.find(c=>c.id===id); const name=prompt("列名を変更",col.name); if(name===null)return;
+  col.name=name.trim()||col.name; render();
+}
+function delCol(id){
+  const col=state.cols.find(c=>c.id===id);
+  if(col.cards.length && !confirm(`「${col.name}」を削除します（カード${col.cards.length}件も削除）。よろしいですか？`))return;
+  if(!col.cards.length && !confirm(`「${col.name}」を削除しますか？`))return;
+  state.cols=state.cols.filter(c=>c.id!==id); render();
+}
+function resetBoard(){ if(!confirm("ボードを初期状態に戻します。よろしいですか？"))return; state=seed(); render(); }
+function esc(s){ return (s==null?"":""+s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+render();
+</script>
+</body>
+</html>
